@@ -1,0 +1,17 @@
+# Environnement virtuel
+venv/
+
+# Base de données locale
+database/clinic.db
+
+# Cache Python
+__pycache__/
+*.pyc
+
+# Logs
+logs/
+
+# OS / IDE
+.vscode/
+.idea/
+.DS_Store
