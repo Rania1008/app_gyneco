@@ -67,7 +67,6 @@ class DashboardWindow(QMainWindow):
         # (préparé pour plus tard)
         self.sidebar.btn_salle.clicked.connect(self.not_implemented)
         self.sidebar.btn_rdv.clicked.connect(self.not_implemented)
-        self.sidebar.btn_consult.clicked.connect(self.not_implemented)
         self.sidebar.btn_facture.clicked.connect(self.not_implemented)
 
     def not_implemented(self):

@@ -14,7 +14,6 @@ class Sidebar(QWidget):
         self.btn_patients = QPushButton("🧍‍♀️ Patients")
         self.btn_salle = QPushButton("🪑 Salle d’attente")
         self.btn_rdv = QPushButton("📅 Rendez-vous")
-        self.btn_consult = QPushButton("🩺 Consultations")
         self.btn_facture = QPushButton("🧾 Facturation")
 
         for btn in [
@@ -22,7 +21,6 @@ class Sidebar(QWidget):
             self.btn_patients,
             self.btn_salle,
             self.btn_rdv,
-            self.btn_consult,
             self.btn_facture
         ]:
             btn.setFixedHeight(40)

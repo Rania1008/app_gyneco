@@ -33,6 +33,9 @@ class LoginWindow(QWidget):
         layout.addWidget(login_btn)
 
         self.setLayout(layout)
+        
+        self.password_input.returnPressed.connect(self.login)
+        self.username_input.returnPressed.connect(self.login)
 
     def login(self):
         username = self.username_input.text().strip()
