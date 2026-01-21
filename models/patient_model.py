@@ -1,5 +1,6 @@
 from config.database import get_connection
 
+
 class PatientModel:
 
     @staticmethod
@@ -44,7 +45,9 @@ class PatientModel:
     def delete(patient_id):
         conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM patients WHERE id = ?", (patient_id,))
+        cursor.execute(
+            "DELETE FROM patients WHERE id = ?", (patient_id,)
+        )
         conn.commit()
         conn.close()
 
@@ -54,7 +57,8 @@ class PatientModel:
         cursor = conn.cursor()
         cursor.execute("""
             SELECT id, nom, telephone, assurance, date_premiere_consultation
-            FROM patients ORDER BY id DESC
+            FROM patients
+            ORDER BY id DESC
         """)
         rows = cursor.fetchall()
         conn.close()

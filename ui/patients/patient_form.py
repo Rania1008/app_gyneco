@@ -3,6 +3,7 @@ from PyQt6.QtWidgets import (
     QComboBox, QDateEdit, QPushButton, QMessageBox
 )
 from PyQt6.QtCore import QDate
+
 from services.patient_service import create_patient, update_patient
 
 
@@ -56,7 +57,46 @@ class PatientForm(QWidget):
         self.setLayout(layout)
 
     def fill_form(self):
-        """Remplit le formulaire en mode modification"""
-        self.nom.setText(self.patient.get("nom", ""))
+        """Mode modification"""
+        self.nom.setText(self.patient["nom"])
         self.telephone.setText(self.patient.get("telephone", ""))
-        self.adr
+        self.adresse.setText(self.patient.get("adresse", ""))
+        self.date_naissance.setDate(
+            QDate.fromString(
+                self.patient.get("date_naissance", QDate.currentDate().toString("yyyy-MM-dd")),
+                "yyyy-MM-dd"
+            )
+        )
+        self.situation.setCurrentText(
+            self.patient.get("situation_familiale", "Célibataire")
+        )
+        self.assurance.setCurrentText(
+            self.patient.get("assurance", "Aucune")
+        )
+
+    # ==================================================
+    # ✅ MÉTHODE MANQUANTE → BUG RÉGLÉ
+    # ==================================================
+    def save(self):
+        if not self.nom.text().strip():
+            QMessageBox.warning(
+                self, "Erreur", "Le nom est obligatoire"
+            )
+            return
+
+        data = {
+            "nom": self.nom.text(),
+            "telephone": self.telephone.text(),
+            "adresse": self.adresse.toPlainText(),
+            "date_naissance": self.date_naissance.date().toString("yyyy-MM-dd"),
+            "situation_familiale": self.situation.currentText(),
+            "assurance": self.assurance.currentText()
+        }
+
+        if self.patient:
+            update_patient(self.patient["id"], data)
+        else:
+            create_patient(data)
+
+        self.refresh_callback()
+        self.close()
