@@ -1,79 +1,91 @@
-from PyQt6.QtWidgets import (
-    QWidget, QFormLayout, QTextEdit,
-    QPushButton, QMessageBox
-)
-from services.consultation_service import add_consultation, update_consultation
+import os
+from datetime import datetime
+from PyQt6.QtWidgets import (QWidget, QFormLayout, QLineEdit, QTextEdit, 
+                             QPushButton, QFileDialog, QVBoxLayout, QMessageBox)
+from services.consultation_service import add_consultation
+from utils.pdf_consultation import export_consultation_pdf
 
 class ConsultationForm(QWidget):
-
-    def __init__(self, patient_id, refresh_callback, consultation=None):
+    def __init__(self, patient_data, refresh_callback):
         super().__init__()
-        self.patient_id = patient_id
-        self.consultation = consultation
+        self.patient = patient_data
         self.refresh_callback = refresh_callback
-        self.setWindowTitle("Consultation")
-        self.resize(600, 600)
+        self.photos = {"clinique": None, "biologique": None, "radiologique": None}
+        self.setWindowTitle(f"Nouvelle Consultation - {self.patient['nom']}")
+        self.resize(500, 800)
         self.setup_ui()
-        if consultation:
-            self.fill_form()
 
     def setup_ui(self):
-        layout = QFormLayout()
+        layout = QVBoxLayout(self)
+        form = QFormLayout()
 
+        self.motif = QLineEdit()
         self.antecedants = QTextEdit()
-        self.motif = QTextEdit()
-        self.examen_clinique = QTextEdit()
-        self.examen_biologique = QTextEdit()
-        self.examen_radiologique = QTextEdit()
-        self.diagnostique = QTextEdit()
+        self.poids = QLineEdit()
+        self.tension = QLineEdit()
+        self.clinique = QTextEdit()
+        self.biologique = QTextEdit()
+        self.radio = QTextEdit()
+        self.diag = QTextEdit()
         self.traitement = QTextEdit()
 
-        save_btn = QPushButton("Enregistrer")
-        save_btn.clicked.connect(self.save)
+        form.addRow("Motif *", self.motif)
+        form.addRow("Antécédents", self.antecedants)
+        form.addRow("Poids (kg)", self.poids)
+        form.addRow("Tension", self.tension)
+        form.addRow("Examen Clinique", self.clinique)
+        form.addRow("Examen Biologique", self.biologique)
+        form.addRow("Examen Radiologique", self.radio)
+        form.addRow("Diagnostique", self.diag)
+        form.addRow("Traitement", self.traitement)
 
-        layout.addRow("Antécédents", self.antecedants)
-        layout.addRow("Motif *", self.motif)
-        layout.addRow("Examen clinique *", self.examen_clinique)
-        layout.addRow("Examen biologique", self.examen_biologique)
-        layout.addRow("Examen radiologique", self.examen_radiologique)
-        layout.addRow("Diagnostique *", self.diagnostique)
-        layout.addRow("Traitement *", self.traitement)
-        layout.addRow(save_btn)
+        btn_save = QPushButton("💾 Enregistrer & Générer PDF")
+        btn_save.setStyleSheet("background-color: #2ecc71; color: white; height: 40px; font-weight: bold;")
+        btn_save.clicked.connect(self.save_consultation)
+        
+        layout.addLayout(form)
+        layout.addWidget(btn_save)
 
-        self.setLayout(layout)
-
-    def fill_form(self):
-        self.antecedants.setPlainText(self.consultation[2])
-        self.motif.setPlainText(self.consultation[3])
-        self.examen_clinique.setPlainText(self.consultation[4])
-        self.examen_biologique.setPlainText(self.consultation[5])
-        self.examen_radiologique.setPlainText(self.consultation[6])
-        self.diagnostique.setPlainText(self.consultation[7])
-        self.traitement.setPlainText(self.consultation[8])
-
-    def save(self):
-        if not self.motif.toPlainText().strip() \
-           or not self.examen_clinique.toPlainText().strip() \
-           or not self.diagnostique.toPlainText().strip() \
-           or not self.traitement.toPlainText().strip():
-            QMessageBox.warning(self, "Erreur", "Champs obligatoires manquants")
+    def save_consultation(self):
+        if not self.motif.text().strip():
+            QMessageBox.warning(self, "Erreur", "Le motif est obligatoire.")
             return
 
+        date_str = datetime.now().strftime("%Y-%m-%d")
+        
+        # Création du dossier exports s'il n'existe pas
+        if not os.path.exists("exports"): 
+            os.makedirs("exports")
+        
+        # NOM DU FICHIER : IMPORTANT POUR LA SYNCHRONISATION
+        pdf_name = f"exports/consult_{self.patient['id']}_{date_str}.pdf"
+        
         data = {
+            "patient_id": self.patient['id'],
+            "date_consultation": date_str,
+            "motif": self.motif.text(),
             "antecedants": self.antecedants.toPlainText(),
-            "motif_consultation": self.motif.toPlainText(),
-            "examen_clinique": self.examen_clinique.toPlainText(),
-            "examen_biologique": self.examen_biologique.toPlainText(),
-            "examen_radiologique": self.examen_radiologique.toPlainText(),
-            "diagnostique": self.diagnostique.toPlainText(),
+            "poids": self.poids.text(),
+            "tension": self.tension.text(),
+            "examen_clinique": self.clinique.toPlainText(),
+            "examen_biologique": self.biologique.toPlainText(),
+            "examen_radiologique": self.radio.toPlainText(),
+            "diagnostique": self.diag.toPlainText(),
             "traitement": self.traitement.toPlainText()
         }
 
-        if self.consultation:
-            update_consultation(self.consultation[0], data)
-        else:
-            data["patient_id"] = self.patient_id
-            add_consultation(data)
+        # Calcul de l'âge pour le PDF
+        try:
+            dob = datetime.strptime(self.patient['date_naissance'], "%Y-%m-%d")
+            age = datetime.now().year - dob.year
+        except:
+            age = "N/A"
 
+        # Export PDF
+        export_consultation_pdf(pdf_name, self.patient['nom'], age, date_str, data)
+        # Sauvegarde Base de données
+        add_consultation(data)
+        
+        QMessageBox.information(self, "Succès", "Consultation et PDF enregistrés !")
         self.refresh_callback()
         self.close()

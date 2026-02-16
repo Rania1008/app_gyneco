@@ -3,170 +3,158 @@ from PyQt6.QtWidgets import (
     QPushButton, QTableWidget, QTableWidgetItem,
     QMessageBox, QLineEdit, QLabel
 )
+from PyQt6.QtCore import Qt
 
-from services.patient_service import get_patients, delete_patient
+# Imports des services et composants
+from services.patient_service import get_patients, delete_patient, get_patient_by_id
 from ui.patients.patient_form import PatientForm
 from ui.patients.patient_profile import PatientProfile
-
+from ui.patients.action_selector import ActionSelector
+from ui.patients.consultation_form import ConsultationForm
+from config.database import get_connection
 
 class PatientList(QWidget):
-
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Patients")
+        self.setWindowTitle("Gestion des Patients")
         self.resize(900, 500)
 
-        self.all_patients = []  # cache pour la recherche
+        self.conn = get_connection()
+        self.all_patients = []
+        
+        # Références pour éviter que les fenêtres ne soient fermées par le Garbage Collector
+        self.form_window = None
+        self.profile_window = None
+        self.consult_window = None
 
         self.setup_ui()
         self.load_data()
 
-    # ======================================================
-    # UI
-    # ======================================================
     def setup_ui(self):
-        main_layout = QVBoxLayout(self)
+        layout = QVBoxLayout(self)
 
-        # ---------- BARRE D'ACTIONS ----------
-        actions_layout = QHBoxLayout()
-
+        # Barre d'actions supérieure
+        actions = QHBoxLayout()
         self.add_btn = QPushButton("➕ Ajouter")
         self.edit_btn = QPushButton("✏️ Modifier")
-        self.view_btn = QPushButton("👁️ Consulter profil")
+        self.view_btn = QPushButton("👁️ Consulter / Action")
         self.del_btn = QPushButton("🗑️ Supprimer")
 
+        # Connexion des signaux
         self.add_btn.clicked.connect(self.add_patient)
         self.edit_btn.clicked.connect(self.edit_patient)
-        self.view_btn.clicked.connect(self.open_profile)
+        self.view_btn.clicked.connect(self.open_action_selector)
         self.del_btn.clicked.connect(self.delete_patient)
 
         for b in [self.add_btn, self.edit_btn, self.view_btn, self.del_btn]:
-            actions_layout.addWidget(b)
+            actions.addWidget(b)
 
-        main_layout.addLayout(actions_layout)
+        layout.addLayout(actions)
 
-        # ---------- BARRE DE RECHERCHE ----------
+        # Barre de recherche
         search_layout = QHBoxLayout()
-        search_label = QLabel("🔍 Rechercher :")
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText(
-            "Nom, téléphone ou assurance..."
-        )
+        self.search_input.setPlaceholderText("Rechercher par nom, téléphone ou ID...")
         self.search_input.textChanged.connect(self.apply_filter)
-
-        search_layout.addWidget(search_label)
+        search_layout.addWidget(QLabel("🔍"))
         search_layout.addWidget(self.search_input)
 
-        main_layout.addLayout(search_layout)
+        layout.addLayout(search_layout)
 
-        # ---------- TABLE ----------
+        # Tableau des patients
         self.table = QTableWidget(0, 5)
-        self.table.setHorizontalHeaderLabels([
-            "ID", "Nom", "Téléphone", "Assurance", "1ère consultation"
-        ])
-        self.table.cellDoubleClicked.connect(self.open_profile)
+        self.table.setHorizontalHeaderLabels(
+            ["ID", "Nom", "Téléphone", "Assurance", "1ère consultation"]
+        )
+        self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        layout.addWidget(self.table)
 
-        main_layout.addWidget(self.table)
-
-    # ======================================================
-    # DATA
-    # ======================================================
     def load_data(self):
+        """Recharge les données depuis la base de données"""
         self.all_patients = get_patients()
-        self.display_patients(self.all_patients)
+        self.display(self.all_patients)
 
-    def display_patients(self, patients):
+    def display(self, patients):
+        """Affiche la liste filtrée dans le tableau"""
         self.table.setRowCount(0)
-
         for p in patients:
             row = self.table.rowCount()
             self.table.insertRow(row)
+            # On assume que p est un tuple/liste venant de la DB (ID, Nom, Tel, etc.)
+            for i in range(5):
+                val = p[i] if i < len(p) else ""
+                item = QTableWidgetItem(str(val))
+                self.table.setItem(row, i, item)
 
-            for col, value in enumerate(p):
-                self.table.setItem(
-                    row, col, QTableWidgetItem(str(value))
-                )
-
-    # ======================================================
-    # SEARCH
-    # ======================================================
     def apply_filter(self, text):
-        text = text.lower().strip()
+        """Filtre dynamique lors de la saisie"""
+        search_text = text.lower()
+        filtered = [
+            p for p in self.all_patients
+            if any(search_text in str(field).lower() for field in p)
+        ]
+        self.display(filtered)
 
-        if not text:
-            self.display_patients(self.all_patients)
-            return
-
-        filtered = []
-        for p in self.all_patients:
-            # p = (id, nom, téléphone, assurance, date)
-            if (
-                text in str(p[1]).lower()
-                or text in str(p[2]).lower()
-                or text in str(p[3]).lower()
-            ):
-                filtered.append(p)
-
-        self.display_patients(filtered)
-
-    # ======================================================
-    # UTILS
-    # ======================================================
-    def get_selected_patient(self):
+    def get_selected_patient_id(self):
+        """Récupère l'ID de la ligne sélectionnée"""
         row = self.table.currentRow()
         if row < 0:
             return None
+        return int(self.table.item(row, 0).text())
 
-        return {
-            "id": int(self.table.item(row, 0).text()),
-            "nom": self.table.item(row, 1).text(),
-            "telephone": self.table.item(row, 2).text(),
-            "assurance": self.table.item(row, 3).text()
-        }
-
-    # ======================================================
-    # ACTIONS
-    # ======================================================
     def add_patient(self):
-        self.form = PatientForm(self.load_data)
-        self.form.show()
+        """Ouvre le formulaire pour un nouveau patient"""
+        self.form_window = PatientForm(self.load_data)
+        self.form_window.show()
 
     def edit_patient(self):
-        patient = self.get_selected_patient()
-        if not patient:
-            QMessageBox.warning(
-                self, "Erreur", "Sélectionnez un patient"
-            )
+        """Récupère les données complètes et ouvre le formulaire en mode édition"""
+        pid = self.get_selected_patient_id()
+        if not pid:
+            QMessageBox.warning(self, "Attention", "Veuillez sélectionner une patiente à modifier.")
             return
+        
+        # Correction du crash : on récupère le dictionnaire complet
+        patient_data = get_patient_by_id(pid)
+        if patient_data:
+            self.form_window = PatientForm(self.load_data, patient_data)
+            self.form_window.show()
 
-        self.form = PatientForm(self.load_data, patient)
-        self.form.show()
-
-    def open_profile(self):
-        patient = self.get_selected_patient()
-        if not patient:
-            QMessageBox.warning(
-                self, "Erreur", "Sélectionnez un patient"
-            )
+    def open_action_selector(self):
+        """Ouvre la boîte de dialogue pour choisir entre Profil ou Nouvelle Consultation"""
+        pid = self.get_selected_patient_id()
+        if not pid:
+            QMessageBox.warning(self, "Attention", "Veuillez sélectionner une patiente.")
             return
-
-        self.profile = PatientProfile(patient)
-        self.profile.show()
+        
+        # CORRECTION ICI : On récupère le dictionnaire complet, pas juste le nom
+        patient_data = get_patient_by_id(pid) 
+        
+        if patient_data:
+            # On passe tout le dictionnaire à ActionSelector
+            selector = ActionSelector(patient_data) 
+            if selector.exec():
+                if selector.resultat == "consult":
+                    # On passe aussi le dictionnaire au formulaire de consultation
+                    self.consult_window = ConsultationForm(patient_data, self.load_data)
+                    self.consult_window.show()
+                elif selector.resultat == "profile":
+                    self.profile_window = PatientProfile(pid, self.conn)
+                    self.profile_window.show()
 
     def delete_patient(self):
-        patient = self.get_selected_patient()
-        if not patient:
-            QMessageBox.warning(
-                self, "Erreur", "Sélectionnez un patient"
-            )
+        """Supprime la patiente après confirmation"""
+        pid = self.get_selected_patient_id()
+        if not pid:
             return
-
-        confirm = QMessageBox.question(
-            self,
-            "Confirmation",
-            f"Supprimer le patient {patient['nom']} ?"
+        
+        reply = QMessageBox.question(
+            self, "Confirmation", 
+            "Êtes-vous sûr de vouloir supprimer cette patiente ? Cela supprimera également son historique.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
-
-        if confirm == QMessageBox.StandardButton.Yes:
-            delete_patient(patient["id"])
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            delete_patient(pid)
             self.load_data()

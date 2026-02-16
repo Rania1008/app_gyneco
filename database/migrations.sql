@@ -123,3 +123,20 @@ CREATE TABLE IF NOT EXISTS facture_details (
     frais REAL,
     FOREIGN KEY (facture_id) REFERENCES factures(id)
 );
+
+DROP TABLE IF EXISTS factures;
+
+CREATE TABLE IF NOT EXISTS factures (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    patient_id INTEGER NOT NULL,
+    consultation_id INTEGER,
+    societe TEXT,
+    reference TEXT UNIQUE,
+    date_facture TEXT DEFAULT (DATE('now')),
+    total REAL CHECK (total >= 0),
+    paye REAL CHECK (paye >= 0),
+    reste REAL CHECK (reste >= 0),
+    FOREIGN KEY (patient_id) REFERENCES patients(id),
+    FOREIGN KEY (consultation_id) REFERENCES consultations(id)
+);
+

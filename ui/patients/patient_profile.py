@@ -1,138 +1,53 @@
-from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QLabel, QPushButton,
-    QTabWidget, QTableWidget, QTableWidgetItem, QMessageBox
-)
-
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QMessageBox
 from services.consultation_service import get_consultations
-from services.suivi_service import get_suivis
-from services.grossesse_service import get_grossesses
-
-from ui.patients.consultation_form import ConsultationForm
-from ui.patients.suivi_form import SuiviForm
-from ui.patients.grossesse_form import GrossesseForm
-
+from services.patient_service import get_patient_by_id
 
 class PatientProfile(QWidget):
-
-    def __init__(self, patient: dict):
+    def __init__(self, patient_id, conn):
         super().__init__()
-        self.patient = patient
-        self.setWindowTitle(f"Profil patient - {patient['nom']}")
-        self.resize(900, 600)
+        self.patient_id = patient_id
+        self.conn = conn
+        self.setWindowTitle("Profil Patiente")
+        self.resize(700, 500)
+        self.setup_ui()
+        self.load_data()
 
-        self.layout = QVBoxLayout()
-        self.setLayout(self.layout)
+    def setup_ui(self):
+        layout = QVBoxLayout(self)
+        
+        # Infos patiente
+        self.info_label = QLabel("Chargement...")
+        self.info_label.setStyleSheet("background: #f0f0f0; padding: 10px; border-radius: 5px;")
+        layout.addWidget(self.info_label)
 
-        self.info = QLabel(
-            f"<b>Nom :</b> {patient['nom']}<br>"
-            f"<b>Téléphone :</b> {patient.get('telephone','')}<br>"
-            f"<b>Assurance :</b> {patient.get('assurance','')}"
-        )
-        self.layout.addWidget(self.info)
+        layout.addWidget(QLabel("<b>Historique des consultations :</b>"))
+        self.table = QTableWidget(0, 2)
+        self.table.setHorizontalHeaderLabels(["ID", "Date"])
+        layout.addWidget(self.table)
 
-        self.tabs = QTabWidget()
-        self.layout.addWidget(self.tabs)
+        self.empty_msg = QLabel("Aucune consultation enregistrée.")
+        self.empty_msg.setStyleSheet("color: gray; font-style: italic;")
+        self.empty_msg.hide()
+        layout.addWidget(self.empty_msg)
 
-        self.init_consultations_tab()
-        self.init_suivi_tab()
-        self.init_grossesse_tab()
+    def load_data(self):
+        # 1. Charger infos patiente
+        p = get_patient_by_id(self.patient_id)
+        if p:
+            self.info_label.setText(f"Nom : {p['nom']}\nTel : {p['telephone']}\nAssurance : {p['assurance']}")
 
-        self.load_all()
-
-    # ---------------- CONSULTATIONS ----------------
-    def init_consultations_tab(self):
-        self.consult_tab = QWidget()
-        layout = QVBoxLayout(self.consult_tab)
-
-        btn = QPushButton("➕ Ajouter consultation")
-        btn.clicked.connect(self.add_consultation)
-        layout.addWidget(btn)
-
-        self.consult_table = QTableWidget(0, 9)
-        self.consult_table.setHorizontalHeaderLabels([
-            "ID", "Date", "Antécédents", "Motif",
-            "Clinique", "Biologique", "Radiologique",
-            "Diagnostique", "Traitement"
-        ])
-        layout.addWidget(self.consult_table)
-
-        self.tabs.addTab(self.consult_tab, "Consultations")
-
-    # ---------------- SUIVI ----------------
-    def init_suivi_tab(self):
-        self.suivi_tab = QWidget()
-        layout = QVBoxLayout(self.suivi_tab)
-
-        btn = QPushButton("➕ Ajouter suivi")
-        btn.clicked.connect(self.add_suivi)
-        layout.addWidget(btn)
-
-        self.suivi_table = QTableWidget(0, 6)
-        self.suivi_table.setHorizontalHeaderLabels([
-            "ID", "Date", "Évolution",
-            "Biologique", "Radiologique", "Traitement"
-        ])
-        layout.addWidget(self.suivi_table)
-
-        self.tabs.addTab(self.suivi_tab, "Suivi patient")
-
-    # ---------------- GROSSESSE ----------------
-    def init_grossesse_tab(self):
-        self.gross_tab = QWidget()
-        layout = QVBoxLayout(self.gross_tab)
-
-        btn = QPushButton("➕ Ajouter grossesse")
-        btn.clicked.connect(self.add_grossesse)
-        layout.addWidget(btn)
-
-        self.gross_table = QTableWidget(0, 7)
-        self.gross_table.setHorizontalHeaderLabels([
-            "ID", "DDR", "Grossesse préc.",
-            "Fœtus", "Statut", "Terme", "Notes"
-        ])
-        layout.addWidget(self.gross_table)
-
-        self.tabs.addTab(self.gross_tab, "Grossesse")
-
-    # ---------------- LOAD ----------------
-    def load_all(self):
-        self.load_consultations()
-        self.load_suivi()
-        self.load_grossesse()
-
-    def load_consultations(self):
-        self.consult_table.setRowCount(0)
-        for row in get_consultations(self.patient["id"]):
-            r = self.consult_table.rowCount()
-            self.consult_table.insertRow(r)
-            for c, v in enumerate(row):
-                self.consult_table.setItem(r, c, QTableWidgetItem(str(v)))
-
-    def load_suivi(self):
-        self.suivi_table.setRowCount(0)
-        for row in get_suivis(self.patient["id"]):
-            r = self.suivi_table.rowCount()
-            self.suivi_table.insertRow(r)
-            for c, v in enumerate(row):
-                self.suivi_table.setItem(r, c, QTableWidgetItem(str(v)))
-
-    def load_grossesse(self):
-        self.gross_table.setRowCount(0)
-        for row in get_grossesses(self.patient["id"]):
-            r = self.gross_table.rowCount()
-            self.gross_table.insertRow(r)
-            for c, v in enumerate(row):
-                self.gross_table.setItem(r, c, QTableWidgetItem(str(v)))
-
-    # ---------------- ACTIONS ----------------
-    def add_consultation(self):
-        self.f = ConsultationForm(self.patient["id"], self.load_consultations)
-        self.f.show()
-
-    def add_suivi(self):
-        self.f = SuiviForm(self.patient["id"], self.load_suivi)
-        self.f.show()
-
-    def add_grossesse(self):
-        self.f = GrossesseForm(self.patient["id"], self.load_grossesse)
-        self.f.show()
+        # 2. Charger consultations
+        consults = get_consultations(self.patient_id)
+        self.table.setRowCount(0)
+        
+        if not consults:
+            self.empty_msg.show()
+            self.table.hide()
+        else:
+            self.empty_msg.hide()
+            self.table.show()
+            for c in consults:
+                row = self.table.rowCount()
+                self.table.insertRow(row)
+                self.table.setItem(row, 0, QTableWidgetItem(str(c[0])))
+                self.table.setItem(row, 1, QTableWidgetItem(str(c[1])))
