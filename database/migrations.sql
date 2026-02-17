@@ -140,3 +140,14 @@ CREATE TABLE IF NOT EXISTS factures (
     FOREIGN KEY (consultation_id) REFERENCES consultations(id)
 );
 
+/* Ajout des types d'actes pour la secrétaire */
+CREATE TABLE IF NOT EXISTS actes_medicaux (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    libelle TEXT NOT NULL,
+    prix_standard REAL
+);
+
+/* Mise à jour de la table factures pour inclure les actes hors consultation */
+ALTER TABLE factures ADD COLUMN acte_id INTEGER;
+ALTER TABLE factures ADD COLUMN notes TEXT;
+

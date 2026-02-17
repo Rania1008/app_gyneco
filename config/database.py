@@ -12,23 +12,35 @@ def init_db():
     conn = get_connection()
     cursor = conn.cursor()
 
-    # Initialisation via migrations.sql
+    # 1. Création des tables de base si elles n'existent pas
     if os.path.exists('database/migrations.sql'):
         with open('database/migrations.sql', 'r', encoding='utf-8') as f:
             sql_script = f.read()
         cursor.executescript(sql_script)
 
-    # Ajout sécurisé des colonnes manquantes
-    cols_to_add = [
-        ("poids", "TEXT"), ("tension", "TEXT"),
-        ("img_clinique", "TEXT"), ("img_biologique", "TEXT"), ("img_radiologique", "TEXT")
+    # 2. Mise à jour de la structure (Migrations forcées)
+    # Liste des colonnes à vérifier dans la table consultations
+    consult_cols = [
+        ("poids", "TEXT"),
+        ("tension", "TEXT"),
+        ("img_clinique", "TEXT"),
+        ("img_biologique", "TEXT"),
+        ("img_radiologique", "TEXT"),
+        ("filename", "TEXT")  # <--- C'est cette colonne qui cause l'erreur
     ]
 
-    for col_name, col_type in cols_to_add:
+    for col_name, col_type in consult_cols:
         try:
             cursor.execute(f"ALTER TABLE consultations ADD COLUMN {col_name} {col_type}")
         except sqlite3.OperationalError:
-            pass 
+            # La colonne existe déjà, on passe à la suivante
+            pass
+
+    # 3. Vérification pour la table factures (pour la secrétaire)
+    try:
+        cursor.execute("ALTER TABLE factures ADD COLUMN notes TEXT")
+    except sqlite3.OperationalError:
+        pass
 
     conn.commit()
     conn.close()
