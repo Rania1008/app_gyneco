@@ -10,43 +10,43 @@ class ActionSelector(QDialog):
         super().__init__()
         self.patient = patient_data
         self.setWindowTitle(f"Dossier : {self.patient['nom']}")
-        self.setMinimumSize(600, 400)
+        self.setMinimumSize(600, 450)
         self.resultat = None
         self.setup_ui()
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
 
-        # CALCUL DE L'AGE CORRIGÉ
-        age_str = "Âge : Non renseigné"
-        if self.patient.get('date_naissance'):
-            try:
-                dob = datetime.strptime(self.patient['date_naissance'], "%Y-%m-%d")
-                today = date.today()
-                age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
-                age_str = f"Âge : {age} ans"
-            except:
-                pass
+        # Calcul de l'âge
+        try:
+            dob = datetime.strptime(self.patient['date_naissance'], "%Y-%m-%d")
+            today = date.today()
+            age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+            age_str = f"{age} ans"
+        except: age_str = "Non renseigné"
 
         header = QHBoxLayout()
-        info = QLabel(f"<b>{self.patient['nom']}</b><br/>{age_str}")
+        info = QLabel(f"<b>{self.patient['nom'].upper()}</b><br/>Âge : {age_str}")
         info.setStyleSheet("font-size: 14px;")
         
         btn_consult = QPushButton("➕ Nouvelle Consultation")
         btn_consult.clicked.connect(self.accept_consult)
-        
         header.addWidget(info)
         header.addStretch()
         header.addWidget(btn_consult)
         layout.addLayout(header)
 
-        layout.addWidget(QLabel("<b>Historique des consultations :</b>"))
+        layout.addWidget(QLabel("<b>Historique (Double-cliquez pour ouvrir le PDF) :</b>"))
         self.table = QTableWidget(0, 2)
         self.table.setHorizontalHeaderLabels(["Date", "Motif"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.table.itemDoubleClicked.connect(self.view_pdf)
         layout.addWidget(self.table)
         
+        btn_folder = QPushButton("📂 Ouvrir dossier exports")
+        btn_folder.clicked.connect(self.open_exports_folder)
+        layout.addWidget(btn_folder)
+
         self.load_history()
 
     def load_history(self):
@@ -64,11 +64,13 @@ class ActionSelector(QDialog):
 
     def view_pdf(self, item):
         date_str = self.table.item(item.row(), 0).text()
-        
-        # FORMAT SYNCHRONISÉ AVEC CONSULTATION_FORM
-        pdf_path = f"exports/consult_{self.patient['id']}_{date_str}.pdf"
-        
+        pdf_path = os.path.abspath(f"exports/consult_{self.patient['id']}_{date_str}.pdf")
         if os.path.exists(pdf_path):
-            os.startfile(os.path.abspath(pdf_path))
+            os.startfile(pdf_path)
         else:
-            QMessageBox.warning(self, "Erreur", f"Fichier PDF introuvable :\n{pdf_path}")
+            QMessageBox.warning(self, "Erreur", f"Fichier PDF introuvable.")
+
+    def open_exports_folder(self):
+        path = os.path.abspath("exports")
+        if not os.path.exists(path): os.makedirs(path)
+        os.startfile(path)
